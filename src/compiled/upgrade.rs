@@ -15,6 +15,7 @@ pub struct UpgradeSpec {
 	pub flavor: String,
 	pub depends: Vec<String>,
 	pub effects: Vec<UpgradeEffect>,
+	pub cost: BigRational,
 }
 
 impl CompiledUpgrade {

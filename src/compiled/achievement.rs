@@ -1,5 +1,5 @@
 use include_dir::Dir;
-use rhai::AST;
+use rhai::{Engine, AST};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone)]
@@ -9,7 +9,11 @@ pub struct CompiledAchievement {
 }
 
 #[derive(Clone, Deserialize, Serialize)]
-pub struct AchievementSpec {}
+pub struct AchievementSpec {
+	pub depends: Vec<String>,
+	pub name: String,
+	pub flavor: String,
+}
 
 impl CompiledAchievement {
 	pub fn compile(dir: &Dir) -> Self {
@@ -22,11 +26,7 @@ impl CompiledAchievement {
 		let script = dir
 			.get_file(dir.path().join("achievement.rhai"))
 			.and_then(|file| file.contents_utf8())
-			.map(|script| {
-				let mut ast = rhai::AST::empty();
-				ast.set_source(script);
-				ast
-			});
+			.map(|script| Engine::new().compile(script).expect("Failed to parse rhai"));
 
 		CompiledAchievement { spec, script }
 	}

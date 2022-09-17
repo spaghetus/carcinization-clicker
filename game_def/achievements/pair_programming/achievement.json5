@@ -1,3 +1,5 @@
 {
-	depends: []
+	depends: [],
+	name: "Pair Programming",
+	flavor: "Everything is better with a friend"
 }

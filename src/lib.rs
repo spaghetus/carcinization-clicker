@@ -1,13 +1,9 @@
-use std::{
-	collections::{HashMap, HashSet},
-	sync::atomic::AtomicU64,
-};
+use std::collections::{HashMap, HashSet};
 
 use chrono::{DateTime, Utc};
-use compiled::{game::CompiledGame, upgrade::UpgradeEffect};
-use include_dir::{include_dir, Dir};
-use num::{rational::Ratio, traits::Pow, BigInt, BigRational, FromPrimitive};
-use rhai::{Instant, AST};
+use compiled::game::CompiledGame;
+use num::{rational::Ratio, BigInt, BigRational, FromPrimitive};
+use rhai::{Engine, Scope};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -17,6 +13,9 @@ pub struct GameState {
 	pub upgrades: HashSet<String>,
 	pub buildings: HashMap<String, usize>,
 	pub achievements: HashSet<String>,
+	#[serde(skip)]
+	#[serde(default = "GameState::mk_engine")]
+	engine: rhai::Shared<rhai::Engine>,
 }
 
 impl GameState {
@@ -51,6 +50,39 @@ impl GameState {
 			let new_carcinized = base_cps * time_delta * Ratio::from_usize(*count).unwrap();
 			self.carcinized += new_carcinized;
 		}
+		// Check achievements
+		for (id, achievement) in game.achievements.iter() {
+			if achievement
+				.spec
+				.depends
+				.iter()
+				.all(|v| self.achievements.contains(v))
+			{
+				let script_result: bool = if let Some(script) = achievement.script.clone() {
+					let self_ser = json5::to_string(self).expect("failed to ser");
+					let self_dynamic: rhai::Dynamic =
+						json5::from_str(&self_ser).expect("failed to deser");
+					let res = self.engine.call_fn::<bool>(
+						&mut Scope::new(),
+						&script,
+						"check",
+						(self_dynamic,),
+					);
+					match res {
+						Ok(v) => v,
+						Err(e) => {
+							eprintln!("Script failed with {}", e);
+							false
+						}
+					}
+				} else {
+					false
+				};
+				if script_result {
+					self.achievements.insert(id.to_string());
+				}
+			}
+		}
 	}
 	pub fn click(&mut self, game: &CompiledGame) {
 		let mut base_click = BigRational::from_u8(1).unwrap();
@@ -75,6 +107,10 @@ impl GameState {
 		}
 		self.carcinized += base_click
 	}
+	pub fn mk_engine() -> rhai::Shared<rhai::Engine> {
+		let ng = Engine::new();
+		rhai::Shared::new(ng)
+	}
 }
 
 impl Default for GameState {
@@ -85,8 +121,25 @@ impl Default for GameState {
 			upgrades: Default::default(),
 			buildings: Default::default(),
 			achievements: Default::default(),
+			engine: GameState::mk_engine(),
 		}
 	}
 }
 
 pub mod compiled;
+
+pub fn human_number(n: &BigRational, decimals: u32) -> String {
+	let mut n = n.clone();
+	let cmp = Ratio::from_u16(1000).unwrap();
+	let mut thousands: usize = 0;
+	let suffixes = ["", "k", "M", "B", "G", "T", "P", "E", "Z", "Y"];
+	while n > cmp && thousands < (suffixes.len() - 1) {
+		thousands += 1;
+		n /= cmp.clone();
+	}
+	let whole = n.to_integer();
+	let decimal = ((n % Ratio::from_u8(1).unwrap())
+		* Ratio::from_usize(10usize.pow(decimals)).unwrap())
+	.to_integer();
+	format!("{}.{:02}{}", whole, decimal, suffixes[thousands])
+}
