@@ -1,9 +1,15 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+	any::Any,
+	collections::{HashMap, HashSet},
+	sync::{Arc, Mutex},
+};
 
 use chrono::{DateTime, Utc};
 use compiled::game::CompiledGame;
+use dyon::{
+	dyon_macro_items, dyon_obj, embed::PushVariable, Call, Module, Runtime, RustObject, Variable,
+};
 use num::{rational::Ratio, BigInt, BigRational, FromPrimitive};
-use rhai::{Engine, Scope};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -13,9 +19,6 @@ pub struct GameState {
 	pub upgrades: HashSet<String>,
 	pub buildings: HashMap<String, usize>,
 	pub achievements: HashSet<String>,
-	#[serde(skip)]
-	#[serde(default = "GameState::mk_engine")]
-	engine: rhai::Shared<rhai::Engine>,
 }
 
 impl GameState {
@@ -46,8 +49,10 @@ impl GameState {
 					.unwrap_or_else(|| Ratio::from_i16(1).unwrap());
 			}
 			let time_delta: i64 = time_delta.num_milliseconds();
-			let time_delta = Ratio::from_i64(time_delta).unwrap() / Ratio::from_i64(1000).unwrap();
-			let new_carcinized = base_cps * time_delta * Ratio::from_usize(*count).unwrap();
+			let time_delta: BigRational =
+				Ratio::from_i64(time_delta).unwrap() / Ratio::from_i64(1000).unwrap();
+
+			let new_carcinized = base_cps * time_delta.clone() * Ratio::from_usize(*count).unwrap();
 			self.carcinized += new_carcinized;
 		}
 		// Check achievements
@@ -57,33 +62,10 @@ impl GameState {
 				.depends
 				.iter()
 				.all(|v| self.achievements.contains(v))
-			{
-				let script_result: bool = if let Some(script) = achievement.script.clone() {
-					let self_ser = json5::to_string(self).expect("failed to ser");
-					let self_dynamic: rhai::Dynamic =
-						json5::from_str(&self_ser).expect("failed to deser");
-					let res = self.engine.call_fn::<bool>(
-						&mut Scope::new(),
-						&script,
-						"check",
-						(self_dynamic,),
-					);
-					match res {
-						Ok(v) => v,
-						Err(e) => {
-							eprintln!("Script failed with {}", e);
-							false
-						}
-					}
-				} else {
-					false
-				};
-				if script_result {
-					self.achievements.insert(id.to_string());
-				}
-			}
+			{}
 		}
 	}
+
 	pub fn click(&mut self, game: &CompiledGame) {
 		let mut base_click = BigRational::from_u8(1).unwrap();
 		let effects: Vec<_> = self
@@ -107,9 +89,38 @@ impl GameState {
 		}
 		self.carcinized += base_click
 	}
-	pub fn mk_engine() -> rhai::Shared<rhai::Engine> {
-		let ng = Engine::new();
-		rhai::Shared::new(ng)
+	pub fn mk_engine() -> Arc<Runtime> {
+		let mut ng = Runtime::new();
+		Arc::new(ng)
+	}
+
+	pub fn get_building(&self, k: String) -> usize {
+		*self.buildings.get(&k).unwrap_or(&0)
+	}
+	pub fn set_building(&mut self, k: String, v: usize) {
+		self.buildings.insert(k, v);
+	}
+
+	pub fn get_upgrade(&self, k: String) -> bool {
+		self.upgrades.contains(&k)
+	}
+	pub fn set_upgrade(&mut self, k: String, v: bool) {
+		if v {
+			self.upgrades.insert(k);
+		} else {
+			self.upgrades.remove(&k);
+		}
+	}
+
+	pub fn get_achievement(&self, k: String) -> bool {
+		self.achievements.contains(&k)
+	}
+	pub fn set_achievement(&mut self, k: String, v: bool) {
+		if v {
+			self.achievements.insert(k);
+		} else {
+			self.achievements.remove(&k);
+		}
 	}
 }
 
@@ -121,7 +132,6 @@ impl Default for GameState {
 			upgrades: Default::default(),
 			buildings: Default::default(),
 			achievements: Default::default(),
-			engine: GameState::mk_engine(),
 		}
 	}
 }

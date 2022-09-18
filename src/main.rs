@@ -7,6 +7,9 @@ use num::{rational::Ratio, BigInt, BigRational, FromPrimitive, ToPrimitive};
 
 const GAME_DEF: Dir = include_dir!("game_def");
 
+#[macro_use]
+extern crate dyon;
+
 fn main() {
 	let game_def = CompiledGame::compile(&GAME_DEF);
 	let game_state: GameState = std::fs::read_to_string(

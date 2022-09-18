@@ -1,18 +1,20 @@
+use std::sync::Arc;
+
+use dyon::Module;
 use include_dir::Dir;
 // This is used but clippy doesn't see it i guess
 #[allow(unused_imports)]
 use num::{BigRational, FromPrimitive};
-use rhai::AST;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone)]
 pub struct CompiledBuilding {
 	pub spec: BuildingSpec,
-	pub script: Option<AST>,
+	pub script: Option<Module>,
 }
 
 impl CompiledBuilding {
-	pub fn compile(dir: &Dir) -> CompiledBuilding {
+	pub fn compile(dir: &Dir) -> Self {
 		let spec = dir
 			.get_file(dir.path().join("building.json5"))
 			.unwrap_or_else(|| panic!("missing building.json5 for {:?}", dir))
@@ -20,12 +22,13 @@ impl CompiledBuilding {
 			.unwrap_or_else(|| panic!("non-utf8 in json5 for {:?}", dir));
 		let spec = json5::from_str(spec).expect("bad building.json5");
 		let script = dir
-			.get_file(dir.path().join("building.rhai"))
+			.get_file(dir.path().join("building.lua"))
 			.and_then(|file| file.contents_utf8())
 			.map(|script| {
-				let mut ast = rhai::AST::empty();
-				ast.set_source(script);
-				ast
+				let mut module = Module::new();
+				dyon::load_str("building.dyon", Arc::new(script.to_string()), &mut module)
+					.expect("Failed to load script");
+				module
 			});
 
 		CompiledBuilding { spec, script }

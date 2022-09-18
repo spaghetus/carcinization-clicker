@@ -1,12 +1,14 @@
+use std::sync::Arc;
+
+use dyon::Module;
 use include_dir::Dir;
 use num::BigRational;
-use rhai::AST;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone)]
 pub struct CompiledUpgrade {
 	pub spec: UpgradeSpec,
-	pub script: Option<AST>,
+	pub script: Option<Module>,
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -27,12 +29,13 @@ impl CompiledUpgrade {
 			.unwrap_or_else(|| panic!("non-utf8 in json5 for {:?}", dir));
 		let spec = json5::from_str(spec).expect("bad upgrade.json5");
 		let script = dir
-			.get_file(dir.path().join("upgrade.rhai"))
+			.get_file(dir.path().join("upgrade.lua"))
 			.and_then(|file| file.contents_utf8())
 			.map(|script| {
-				let mut ast = rhai::AST::empty();
-				ast.set_source(script);
-				ast
+				let mut module = Module::new();
+				dyon::load_str("building.dyon", Arc::new(script.to_string()), &mut module)
+					.expect("Failed to load script");
+				module
 			});
 
 		CompiledUpgrade { spec, script }

@@ -1,5 +1,7 @@
 use include_dir::Dir;
 
+use crate::GameState;
+
 use super::achievement::CompiledAchievement;
 
 use super::upgrade::CompiledUpgrade;
@@ -68,4 +70,10 @@ impl CompiledGame {
 			},
 		}
 	}
+}
+
+pub trait GameEffect {
+	type ExtraState;
+
+	fn apply(&self, game: &mut GameState, extra: &mut Self::ExtraState);
 }

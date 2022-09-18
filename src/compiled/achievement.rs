@@ -1,11 +1,13 @@
+use std::sync::Arc;
+
+use dyon::Module;
 use include_dir::Dir;
-use rhai::{Engine, AST};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone)]
 pub struct CompiledAchievement {
 	pub spec: AchievementSpec,
-	pub script: Option<AST>,
+	pub script: Option<Module>,
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -24,9 +26,14 @@ impl CompiledAchievement {
 			.unwrap_or_else(|| panic!("non-utf8 in json5 for {:?}", dir));
 		let spec = json5::from_str(spec).expect("bad achievement.json5");
 		let script = dir
-			.get_file(dir.path().join("achievement.rhai"))
+			.get_file(dir.path().join("achievement.lua"))
 			.and_then(|file| file.contents_utf8())
-			.map(|script| Engine::new().compile(script).expect("Failed to parse rhai"));
+			.map(|script| {
+				let mut module = Module::new();
+				dyon::load_str("building.dyon", Arc::new(script.to_string()), &mut module)
+					.expect("Failed to load script");
+				module
+			});
 
 		CompiledAchievement { spec, script }
 	}
