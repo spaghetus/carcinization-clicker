@@ -1,7 +1,8 @@
+#![warn(clippy::pedantic)]
+
 use std::{
-	any::Any,
 	collections::{HashMap, HashSet},
-	sync::{Arc, Mutex},
+	sync::Arc,
 };
 
 use chrono::{DateTime, Duration, Utc};
@@ -26,13 +27,13 @@ impl GameState {
 		self.last_tick = new_time;
 		let mut effects = vec![];
 		// Get building effects
-		for (id, count) in self.buildings.iter() {
+		for (id, count) in &self.buildings {
 			if !self.buildings.contains_key(id) {
 				continue;
 			}
 			let base_building = game.effects.get(id).expect("nonexistent building owned");
 			let mut building = base_building.clone();
-			for (up_id, upgrade) in game.effects.iter() {
+			for (up_id, upgrade) in &game.effects {
 				if let EffectKind::Upgrade {
 					affects,
 					cost: _,
@@ -40,27 +41,27 @@ impl GameState {
 				} = &upgrade.kind
 				{
 					if self.upgrades.contains(up_id) && affects.contains(id) {
-						effect(&mut building)
+						effect(&mut building);
 					}
 				}
 			}
-			for _ in 0..*self.buildings.get(id).unwrap_or(&0) {
+			for _ in 0..*count {
 				if let EffectKind::Building {
 					base_cost: _,
 					cost_fac: _,
 					effect,
 				} = &building.kind
 				{
-					effects.push(effect.clone())
+					effects.push(effect.clone());
 				}
 			}
 		}
 		// Apply building effects
 		for effect in effects {
-			effect(self, time_delta)
+			effect(self, time_delta);
 		}
 		// Check achievements
-		for (id, achievement) in game.effects.iter() {
+		for (id, achievement) in &game.effects {
 			if self.achievements.contains(id)
 				|| achievement
 					.depends
@@ -83,12 +84,14 @@ impl GameState {
 			flavor: "This shouldn't appear".to_string(),
 			depends: vec![],
 			kind: EffectKind::Building {
-				base_cost: Default::default(),
-				cost_fac: Default::default(),
-				effect: Arc::new(|game, _| game.carcinized += BigRational::from_u8(1).unwrap()),
+				base_cost: Ratio::default(),
+				cost_fac: Ratio::default(),
+				effect: Arc::new(|game, _| {
+					game.carcinized += BigRational::from_u8(1).unwrap_or_else(|| unreachable!());
+				}),
 			},
 		};
-		for (id, upgrade) in game.effects.iter() {
+		for (id, upgrade) in &game.effects {
 			if let EffectKind::Upgrade {
 				affects,
 				cost: _,
@@ -96,7 +99,7 @@ impl GameState {
 			} = &upgrade.kind
 			{
 				if self.achievements.contains(id) && affects.contains(id) {
-					effect(&mut base_effect)
+					effect(&mut base_effect);
 				}
 			}
 		}
@@ -106,7 +109,7 @@ impl GameState {
 			effect,
 		} = base_effect.kind
 		{
-			effect(self, Duration::seconds(0))
+			effect(self, Duration::seconds(0));
 		}
 	}
 }
@@ -116,16 +119,17 @@ impl Default for GameState {
 		GameState {
 			last_tick: Utc::now(),
 			carcinized: Ratio::from_integer(BigInt::from(0)),
-			upgrades: Default::default(),
-			buildings: Default::default(),
-			achievements: Default::default(),
+			upgrades: HashSet::default(),
+			buildings: HashMap::default(),
+			achievements: HashSet::default(),
 		}
 	}
 }
 
+#[must_use]
 pub fn human_number(n: &BigRational, decimals: u32) -> String {
 	let mut n = n.clone();
-	let cmp = Ratio::from_u16(1000).unwrap();
+	let cmp = Ratio::from_u16(1000).unwrap_or_else(|| unreachable!());
 	let mut thousands: usize = 0;
 	let suffixes = ["", "k", "M", "B", "G", "T", "P", "E", "Z", "Y"];
 	while n > cmp && thousands < (suffixes.len() - 1) {
@@ -133,8 +137,8 @@ pub fn human_number(n: &BigRational, decimals: u32) -> String {
 		n /= cmp.clone();
 	}
 	let whole = n.to_integer();
-	let decimal = ((n % Ratio::from_u8(1).unwrap())
-		* Ratio::from_usize(10usize.pow(decimals)).unwrap())
+	let decimal = ((n % Ratio::from_u8(1).unwrap_or_else(|| unreachable!()))
+		* Ratio::from_usize(10usize.pow(decimals)).unwrap_or_else(|| unreachable!()))
 	.to_integer();
 	format!("{}.{:02}{}", whole, decimal, suffixes[thousands])
 }

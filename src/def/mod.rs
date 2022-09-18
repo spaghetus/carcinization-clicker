@@ -11,6 +11,7 @@ macro_rules! gen_compiled_game {
 			mod $id;
 		)*
 
+		#[must_use]
 		pub fn gen_compiled_game() -> CompiledGame {
 			use std::collections::HashMap;
 			let mut effects = HashMap::new();
@@ -47,6 +48,8 @@ pub enum EffectKind {
 	Building {
 		base_cost: BigRational,
 		cost_fac: BigRational,
+		// smh the type isn't *that* complex
+		#[allow(clippy::type_complexity)]
 		effect: Arc<dyn Fn(&mut GameState, Duration)>,
 	},
 	Upgrade {

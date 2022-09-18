@@ -1,6 +1,6 @@
 use super::{EffectKind, GameEffect};
 use chrono::Duration;
-use num::{rational::Ratio, BigInt, BigRational, FromPrimitive};
+use num::{rational::Ratio, BigInt, FromPrimitive};
 use std::sync::Arc;
 
 pub fn gen_compiled_effect() -> GameEffect {
@@ -28,8 +28,8 @@ pub fn gen_compiled_effect() -> GameEffect {
 							* Ratio::new_raw(
 								BigInt::from_i64(delta_t.num_milliseconds()).unwrap(),
 								BigInt::from_i64(1000).unwrap(),
-							)
-					})
+							);
+					});
 				}
 			}),
 		},

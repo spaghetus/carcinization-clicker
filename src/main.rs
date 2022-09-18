@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 
 use carcinization_clicker::{
-	def::{CompiledGame, EffectKind, GameEffect},
+	def::{CompiledGame, EffectKind},
 	GameState,
 };
 use chrono::Utc;

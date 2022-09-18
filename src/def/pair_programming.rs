@@ -1,7 +1,5 @@
 use std::sync::Arc;
 
-use num::{BigRational, FromPrimitive};
-
 use super::GameEffect;
 
 pub fn gen_compiled_effect() -> GameEffect {

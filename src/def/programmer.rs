@@ -17,7 +17,7 @@ pub fn gen_compiled_effect() -> GameEffect {
 					* BigRational::new_raw(
 						BigInt::from_i64(delta_t.num_milliseconds()).unwrap(),
 						BigInt::from_i64(1000).unwrap(),
-					)
+					);
 			}),
 		},
 	}
